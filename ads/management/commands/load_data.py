@@ -2,10 +2,25 @@ import csv
 import json
 
 from django.core.management.base import BaseCommand
-from ads.models import Ads, Categories
+from ads.models import Ads, Categories, Locations, Users
 
 
 class Command(BaseCommand):
+    models_dict = {
+        Locations: ['name', 'lat', 'lng'],
+        Categories: ['name'],
+        Users: ['first_name', 'last_name', 'username', 'password', 'role', 'age', 'locations'],
+        Ads: ['name', 'author', 'price', 'description', 'is_published', 'image', 'category'],
+    }
+
+    def read_csv(self, csv_file):
+        data = []
+        with open(csv_file, 'r', encoding='utf-8') as file:
+            reader = csv.reader(file, delimiter=',')
+            for row in reader:
+                data.append(row)
+        return data
+
     def upload_data_to_json(self, data_list, jsonfile):
         list_of_keys = data_list[0].copy()
         del data_list[0]
@@ -18,48 +33,75 @@ class Command(BaseCommand):
             json.dump(list_of_dicts, json_file, ensure_ascii=False)
 
     def handle(self, *args, **options):
-        data_1 = []
-        with open('ads.csv', 'r', encoding='utf-8') as a_csv_file:
-            reader = csv.reader(a_csv_file, delimiter=',')
-            for row in reader:
-                data_1.append(row)
+        location_data = self.read_csv('location.csv')
+        self.upload_data_to_json(location_data, 'location.json')
 
-        self.upload_data_to_json(data_1, 'ads.json')
-
-        with open('ads.json', 'r', encoding='utf-8') as file:
+        with open('location.json', 'r', encoding='utf-8') as file:
             data_for_model = json.load(file)
 
             for dt in data_for_model:
-                ad = Ads(
+                loc = Locations(
                     name=dt['name'],
-                    author=dt['author'],
-                    price=dt['price'],
-                    description=dt['description'],
-                    is_published=dt['is_published'].capitalize()
+                    lat=dt['lat'],
+                    lng=dt['lng']
                 )
 
-                ad.save()
-                print('insert done')
+                loc.save()
+                print('insert loc done')
 
-        data_2 = []
-        with open('categories.csv', 'r', encoding='utf-8') as c_csv_file:
-            reader = csv.reader(c_csv_file, delimiter=',')
-            for row in reader:
-                data_2.append(row)
+        category_data = self.read_csv('category.csv')
+        self.upload_data_to_json(category_data, 'category.json')
 
-        self.upload_data_to_json(data_2, 'categories.json')
+        with open('category.json', 'r', encoding='utf-8') as file:
+            data_for_model = json.load(file)
 
-        with open('categories.json', 'r', encoding='utf-8') as file_2:
-            data_for_model_2 = json.load(file_2)
-
-            for dt in data_for_model_2:
-                category = Categories(
+            for dt in data_for_model:
+                cat = Categories(
                     name=dt['name']
                 )
 
-                category.save()
-                print('insert done')
+                cat.save()
+                print('insert cat done')
 
+        user_data = self.read_csv('user.csv')
+        self.upload_data_to_json(user_data, 'user.json')
 
-command = Command()
-command.handle()
+        with open('user.json', 'r', encoding='utf-8') as file:
+            data_for_model = json.load(file)
+
+            for dt in data_for_model:
+                location = Locations.objects.filter(id=int(dt['location_id']))
+                user = Users(
+                    first_name=dt['first_name'],
+                    last_name=dt['last_name'],
+                    username=dt['username'],
+                    password=dt['password'],
+                    role=dt['role'],
+                    age=dt['age']
+                )
+
+                user.save()
+                user.locations.add(*location)
+                print('insert user done')
+
+        ad_data = self.read_csv('ad.csv')
+        self.upload_data_to_json(ad_data, 'ad.json')
+
+        with open('ad.json', 'r', encoding='utf-8') as file:
+            data_for_model = json.load(file)
+
+            for dt in data_for_model:
+                author = Users.objects.get(id=int(dt['author_id']))
+                category = Categories.objects.get(id=int(dt['category_id']))
+                ad = Ads(
+                    name=dt['name'],
+                    author=author,
+                    price=dt['price'],
+                    description=dt['description'],
+                    is_published=bool(dt['is_published']),
+                    image=dt['image'],
+                    category=category
+                )
+
+                ad.save()
+                print('insert ad done')
